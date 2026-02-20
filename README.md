@@ -7,64 +7,51 @@ Tetris game built with React
 </h1>
 
 
-Use Sonarqube block 
-```
-environment {
-        SCANNER_HOME=tool 'sonar-scanner'
-      }
+# 🎮 TETRIS DevSecOps CI/CD with ArgoCD – Deployment Steps
 
-stage("Sonarqube Analysis "){
-            steps{
-                withSonarQubeEnv('sonar-server') {
-                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Amazon \
-                    -Dsonar.projectKey=Amazon '''
-                }
-            }
-        }
-```        
+1. Launch an AWS EC2 instance (Ubuntu 24.04, t2.large, 50GB) and attach an IAM Role with Admin access.
 
-Owasp block
-```
-stage('OWASP FS SCAN') {
-            steps {
-                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-            }
-        }
-```
+2. Install required tools on EC2: Java (Temurin 17), Jenkins, Docker, SonarQube (via Docker), AWS CLI, kubectl, Terraform, and Trivy.
 
-# ARGO CD SETUP
-https://archive.eksworkshop.com/intermediate/290_argocd/install/
+3. Start SonarQube container:
 
-# Image updater stage
-```
- environment {
-    GIT_REPO_NAME = "Tetris-manifest"
-    GIT_USER_NAME = "Aj7Ay"
-  }
-    stage('Checkout Code') {
-      steps {
-        git branch: 'main', url: 'https://github.com/Aj7Ay/Tetris-manifest.git'
-      }
-    }
+4. Configure Jenkins:
+   - Install plugins (JDK, SonarQube Scanner, NodeJS, OWASP, Docker)
+   - Add Sonar token in credentials
+   - Add DockerHub credentials
+   - Add GitHub token
 
-    stage('Update Deployment File') {
-      steps {
-        script {
-          withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-            // Determine the image name dynamically based on your versioning strategy
-            NEW_IMAGE_NAME = "sevenajay/tetris77:latest"
+5. Create Jenkins pipeline for EKS provisioning using Terraform:
+   - terraform init
+   - terraform validate
+   - terraform plan
+   - terraform apply
+   (This creates VPC, subnets, EKS cluster, and node group.)
 
-            // Replace the image name in the deployment.yaml file
-            sh "sed -i 's|image: .*|image: $NEW_IMAGE_NAME|' deployment.yml"
+6. Create Jenkins pipeline for Tetris application:
+   - Checkout source code
+   - Run SonarQube analysis
+   - Enforce Quality Gate
+   - Run npm install
+   - Perform Trivy security scan
+   - Build Docker image
+   - Push image to DockerHub
+   - Update deployment.yml in manifest repository
 
-            // Git commands to stage, commit, and push the changes
-            sh 'git add deployment.yml'
-            sh "git commit -m 'Update deployment image to $NEW_IMAGE_NAME'"
-            sh "git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main"
-          }
-        }
-      }
-    }
+7. Update kubeconfig to connect Jenkins to EKS:
+   
 
-```
+8. Install ArgoCD in EKS:
+  
+
+9. Login to ArgoCD, connect the manifest repository, create a new application, and enable automatic sync.
+
+10. Access the application using:
+    
+    Open the LoadBalancer hostname in the browser.
+
+11. For Version 2 deployment:
+    - Push updated code to V1 repository
+    - Jenkins builds new Docker image
+    - Updates deployment.yml
+    - ArgoCD automatically syncs and deploys the new version.
